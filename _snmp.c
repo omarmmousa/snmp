@@ -1,10 +1,12 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/types.h>
-#include <unistd.h>
-#include <math.h>
+//#include <unistd.h>
+//#include <math.h>
 #include <string.h>
+#include <time.h>
 
 #define lastInOctets 0
 #define lastOutOctets 1
@@ -117,11 +119,11 @@ void showInterfaces()
   char *oid = "ipAdEntAddr";
   int count = 0;
   snmpgetbulk(oid);
-  printf("\n||===========================||");
-  printf("\n||         Interfaces        ||");
-  printf("\n||===========================||");
-  printf("\n|| Number   |   IP           ||");
-  printf("\n||========================== ||\n");
+  printf("\n||==============================||");
+  printf("\n||         Interfaces           ||");
+  printf("\n||==============================||");
+  printf("\n|| Number     |   IP            ||");
+  printf("\n||==============================||\n");
 
   if (status == STAT_SUCCESS && response->errstat == SNMP_ERR_NOERROR)
   {
@@ -129,7 +131,7 @@ void showInterfaces()
       {
         if(vars->type == (ASN_IPADDRESS))
         {
-          char tmpIp[100];
+          char tmpIp[50];
           strcpy(ifInterface[count++].ipaddress, parseIP(tmpIp));
 
         //printf("Interface #: %s\n",ifInterface[count].ipaddress);
@@ -183,21 +185,30 @@ cleanup();
 count--;
 while(count >= 0)
 {
-  printf("|| %i        | %s||\t\n", ifInterface[count].ifIndex, ifInterface[count].ipaddress);
+  if(ifInterface[count].ifIndex > 9)
+  {
+  printf("||%i\t      |%s\t||\n", ifInterface[count].ifIndex, ifInterface[count].ipaddress);
   count--;
+  }
+  else
+  {
+    printf("||%i\t      |%s \t||\n", ifInterface[count].ifIndex, ifInterface[count].ipaddress);
+    count--;
+  }
+
 }
-printf("=========================================================================\n");
+  printf("||==============================||\n");
 }
 
 void showNeighbor()
 {
   char ifIndexOID[50] = "ipNetToMediaIfIndex";
   char ipOID[50] = "ipNetToMediaNetAddress";
-  printf("\n||===========================||");
-  printf("\n||         Neighbor          ||");
-  printf("\n||===========================||");
-  printf("\n|| Interface   |  Neighbor   ||");
-  printf("\n||===========================||\n");
+  printf("\n||==============================||");
+  printf("\n||            Neighbor          ||");
+  printf("\n||==============================||");
+  printf("\n||Interface    |  Neighbor      ||");
+  printf("\n||==============================||\n");
   while(1)
   {
     snmpgetnext(ifIndexOID);
@@ -231,10 +242,18 @@ void showNeighbor()
     {
       break;
     }
-    printf("|| %i           | %s ||\n",index, ipAdd);
+
+    if(index > 9)
+    {
+      printf("||%i\t       |%s   ||\n",index, ipAdd);
+    }
+    else
+    {
+      printf("||%i\t       |%s\t||\n",index, ipAdd);
+    }
     cleanup();
   }
-  printf("=========================================================================\n");
+  printf("||==============================||\n");
 }
 
 void showTraffic(int interval, int samples)
@@ -247,7 +266,7 @@ void showTraffic(int interval, int samples)
   sprintf(ifInOctets, "%s.%i", "ifInOctets", monitor.ifIndex);
   sprintf(ifOutOctets, "%s.%i", "ifOutOctets", monitor.ifIndex);
 
-  printf("Monitoring %s \n", monitorIPtraffic);
+  printf("||Monitoring %s\t||\n", monitorIPtraffic);
 
   snmpget(ifInOctets);
   data[lastInOctets] = (int) *(response->variables->val.integer);
@@ -256,7 +275,7 @@ void showTraffic(int interval, int samples)
   data[lastOutOctets] = (int) *(response->variables->val.integer);
   cleanup();
 
-  int ttime = interval;
+  int ttime = 0;
   while(samples >= 0)
   {
     sleep(interval);
@@ -267,8 +286,10 @@ void showTraffic(int interval, int samples)
     int outOctets = (int) *(response->variables->val.integer);
     cleanup();
 
-    long double traf = (fmax((inOctets - data[lastInOctets]),(outOctets - data[lastOutOctets]))) * (0.001)  / (interval);
-    printf("At %i seconds --> %i kbps --> (%i mbps)\n", ttime, traf, traf);
+    long double octets = fmax((inOctets - data[lastInOctets]),(outOctets - data[lastOutOctets]));
+    long double traf = ((octets * 0.001)/interval);
+    long double traf2 = traf * (0.001);
+    printf("At %i seconds | kbps = %d | mbps = %i.%d\n", ttime, traf);
     data[lastInOctets] = inOctets;
     data[lastOutOctets] = outOctets;
     ttime = ttime + interval;
@@ -291,7 +312,9 @@ int main(int argc, char* argv[])
   char *community = argv[4];
   init(hostname,community);
   showInterfaces();
+  printf("||==============================||");
   showNeighbor();
+  printf("||==============================||\n");
   showTraffic(interval, samples);
   return 0;
 }
