@@ -1,17 +1,16 @@
-#include <stdio.h>
+#include <stdio.h> // standard C library
 #include <stdlib.h>
-#include <net-snmp/net-snmp-config.h>
-#include <net-snmp/net-snmp-includes.h>
+#include <net-snmp/net-snmp-config.h> //net-snmp configure library
+#include <net-snmp/net-snmp-includes.h> // net-snmp includes library
 #include <net-snmp/types.h>
-//#include <unistd.h>
-//#include <math.h>
 #include <string.h>
 #include <time.h>
-
+/* determine the number of octets lost over the incoming link */
 #define lastInOctets 0
+/* determines number of octets lost over the outgoing link */
 #define lastOutOctets 1
 
-
+/* Global Variables for monitoring*/
 netsnmp_session session, *ss;
 netsnmp_pdu *pdu;
 netsnmp_pdu *response;
@@ -20,24 +19,33 @@ size_t anOID_len;
 netsnmp_variable_list *vars;
 int status;
 
+/* structure to grab ipaddresses as a string and ifIndex values */
 struct interfaces{
   char ipaddress[20];
   int ifIndex;
 };
 
+/* initiating the snmp agent */
 void init(char *ip, char *community)
 {
+  /* to initiate the snmp session */
   init_snmp("asn2");
 
+/* Default set up */
 
   snmp_sess_init( &session);
+  /* peername: name of default address */
   session.peername = strdup(ip);
+  /* SNMP version used {SNMPv2c}*/
   session.version = SNMP_VERSION_2c;
+  /* default community name */
   session.community = community;
+  /* the length of the community name */
   session.community_len = strlen(session.community);
 
 }
 
+/* to establish an snmp session */
 void snmpcommand(char *oid, int command)
 {
   SOCK_STARTUP;
@@ -48,6 +56,7 @@ void snmpcommand(char *oid, int command)
     SOCK_CLEANUP;
     exit(1);
   }
+  /* for snmpbulkget operation */
   pdu = snmp_pdu_create(command);
     if (command == SNMP_MSG_GETBULK)
     {
@@ -60,20 +69,22 @@ void snmpcommand(char *oid, int command)
     status = snmp_synch_response(ss,pdu, &response);
 }
 
+/* snmpget operation */
 void snmpget(char* oid)
 {
   snmpcommand(oid,SNMP_MSG_GET);
 }
-
+/* snmpgetnext operation */
 void snmpgetnext(char *oid)
 {
   snmpcommand(oid,SNMP_MSG_GETNEXT);
 }
+/* snmpgetbulk operation {introduced in SNMPv2} */
 void snmpgetbulk(char *oid)
 {
   snmpcommand(oid, SNMP_MSG_GETBULK);
 }
-
+/* cleanup and release the pdus from V1 and V2 */
 void cleanup()
 {
   if(response)
@@ -83,7 +94,7 @@ void cleanup()
     SOCK_CLEANUP;
   }
 }
-
+/* error handling function */
 void handlemyErrors(int err)
 {
   if(status == STAT_SUCCESS)
@@ -99,7 +110,7 @@ void handlemyErrors(int err)
     snmp_sess_perror("snmp", ss);
   }
 }
-
+/* to parse through IP addresses */
 char *parseIP(char *tmpIP)
 {
   snprint_ipaddress(tmpIP, 50, vars, NULL,NULL,NULL);
@@ -111,6 +122,10 @@ char *parseIP(char *tmpIP)
 }
 
 struct interfaces monitor;
+/*||=============================================||
+ *||                interfaces                   ||
+ *||=============================================|| */
+/* Shows the Agents Interfaces */
 
 void showInterfaces()
 {
@@ -118,6 +133,7 @@ void showInterfaces()
   struct interfaces ifInterface[10];
   char *oid = "ipAdEntAddr";
   int count = 0;
+  /* getbulk function to read oid of Agent */
   snmpgetbulk(oid);
   printf("\n||==============================||");
   printf("\n||         Interfaces           ||");
@@ -125,22 +141,30 @@ void showInterfaces()
   printf("\n|| Number     |   IP            ||");
   printf("\n||==============================||\n");
 
+  /* there is No Error in snmp session */
   if (status == STAT_SUCCESS && response->errstat == SNMP_ERR_NOERROR)
   {
+      /* loop to read values of the variables within the session at the interface level */
+
       for(vars = response->variables; vars; vars = vars->next_variable)
       {
+        /* If variable in netsnmp is type ASN it is a representation of IPaddresses */
         if(vars->type == (ASN_IPADDRESS))
         {
+          /* a string of 50 to store the IP that was parsed for the Interfaces */
           char tmpIp[50];
-          strcpy(ifInterface[count++].ipaddress, parseIP(tmpIp));
+          /* copy the ip address if it is considered an interface */
 
-        //printf("Interface #: %s\n",ifInterface[count].ipaddress);
+          strcpy(ifInterface[count++].ipaddress, parseIP(tmpIp));
+          /* compare string with localhost IP address */
           int copy = strcmp(tmpIp, "localhost");
+          /* if copy returns a non-zero copy ipaddress that is being monitored */
           if(copy!= 0)
           {
             monitor_index = count;
             strcpy(monitor.ipaddress, tmpIp);
           }
+          /* takes in no more than 9 interfaces */
           if(count >= 10)
           {
             printf("Too many interfaces\n");
@@ -154,8 +178,10 @@ void showInterfaces()
           break;
         }
       }
+      /* loop to monitor ippaddress in the interface level */
       for(vars; vars; vars = vars->next_variable)
       {
+        /* if ip string is a data representation of ASN monitor that address */
         if (vars->type == ASN_INTEGER)
         {
           ifInterface[count++].ifIndex = (int) *(vars->val.integer);
@@ -183,6 +209,7 @@ else
 cleanup();
 
 count--;
+/* formating the output of the interfaces */
 while(count >= 0)
 {
   if(ifInterface[count].ifIndex > 9)
@@ -199,7 +226,10 @@ while(count >= 0)
 }
   printf("||==============================||\n");
 }
-
+/*||=============================================||
+ *||                Neighbors                    ||
+ *||=============================================|| */
+/* Show the agents Neighboring networks */
 void showNeighbor()
 {
   char ifIndexOID[50] = "ipNetToMediaIfIndex";
@@ -209,7 +239,7 @@ void showNeighbor()
   printf("\n||==============================||");
   printf("\n||Interface    |  Neighbor      ||");
   printf("\n||==============================||\n");
-  while(1)
+do
   {
     snmpgetnext(ifIndexOID);
     int index;
@@ -252,10 +282,14 @@ void showNeighbor()
       printf("||%i\t       |%s\t||\n",index, ipAdd);
     }
     cleanup();
-  }
+  }while(1);
   printf("||==============================||\n");
 }
 
+/*||=============================================||
+ *||                Monitoring                   ||
+ *||=============================================|| */
+/* Monitoring Internet Traffic */
 void showTraffic(int interval, int samples)
 {
   char *monitorIPtraffic = monitor.ipaddress;
@@ -285,7 +319,7 @@ void showTraffic(int interval, int samples)
     snmpget(ifOutOctets);
     int outOctets = (int) *(response->variables->val.integer);
     cleanup();
-
+    /* monitoring the traffic going on the agent device */
     long double octets = fmax((inOctets - data[lastInOctets]),(outOctets - data[lastOutOctets]));
     long double traf = ((octets * 0.001)/interval);
     long double traf2 = traf * (0.001);
@@ -297,20 +331,24 @@ void showTraffic(int interval, int samples)
   }
 }
 
-
+/*||=============================================||
+ *||                Main                         ||
+ *||=============================================|| */
+/* Main Function */
+/* main function that takes commands on the Command Line Interface */
 int main(int argc, char* argv[])
 {
   if( argc != 5)
   {
-    printf("Please provide Time interval between samples, Number of samples to take, IP address of the agent, and community\n");
+    printf("Please provide Time interval, Number of samples, IP address of the agent, and community\n");
 
   }
 
   int interval = atoi(argv[1]);
   int samples = atoi(argv[2]);
-  char *hostname = argv[3];
+  char *host = argv[3];
   char *community = argv[4];
-  init(hostname,community);
+  init(host,community);
   showInterfaces();
   printf("||==============================||");
   showNeighbor();
