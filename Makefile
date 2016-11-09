@@ -9,10 +9,10 @@
 
 CC=gcc
 
-OBJS1=snmp2.o
+OBJS1=_snmp.o
 OBJS2=example-demon.o nstAgentSubagentObject.o
 OBJS3=asyncapp.o
-TARGETS=example-demon snmp2 asyncapp
+TARGETS=example-demon _snmp asyncapp
 
 CFLAGS=-I. `net-snmp-config --cflags`
 BUILDLIBS=`net-snmp-config --libs`
@@ -23,8 +23,8 @@ DLFLAGS=-fPIC -shared
 
 all: $(TARGETS)
 
-snmp2: $(OBJS1)
-	$(CC) -o snmp2 $(OBJS1) $(BUILDLIBS)
+_snmp: $(OBJS1)
+	$(CC) -o _snmp $(OBJS1) $(BUILDLIBS)
 
 asyncapp: $(OBJS3)
 	$(CC) -o asyncapp $(OBJS3) $(BUILDLIBS)

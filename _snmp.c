@@ -178,12 +178,58 @@ cleanup();
 count--;
 while(count >= 0)
 {
-  printf("|| %i | %s ||\n", ifInterface[count].ifIndex, ifInterface[count].ipaddress);
+  printf("|| %i        | %s||\t\n", ifInterface[count].ifIndex, ifInterface[count].ipaddress);
   count--;
 }
-
 printf("=========================================================================\n");
-printf("\n\n");
+}
+
+void showNeighbor()
+{
+  char ifIndexOID[50] = "ipNetToMediaIfIndex";
+  char ipOID[50] = "ipNetToMediaNetAddress";
+  printf("\n||===========================||");
+  printf("\n||         Neighbor          ||");
+  printf("\n||===========================||");
+  printf("\n|| Interface   |  Neighbor   ||");
+  printf("\n||===========================||\n");
+  while(1)
+  {
+    snmpgetnext(ifIndexOID);
+    int index;
+    char *ipAdd;
+    vars = response->variables;
+
+    if( vars->type == ASN_INTEGER)
+    {
+      char tmpIp[50];
+      snprint_objid(tmpIp,50, vars->name, vars->name_length);
+      strcpy(ifIndexOID, tmpIp);
+      index = (int) *(vars->val.integer);
+    }
+    else
+    {
+      break;
+    }
+    cleanup();
+    snmpgetnext(ipOID);
+    vars = response->variables;
+    if(vars->type == ASN_IPADDRESS)
+    {
+      char tmpIp2[50];
+      char tmpOiD[50];
+      snprint_objid(tmpOiD,50,vars->name,vars->name_length);
+      strcpy(ipOID,tmpOiD);
+      ipAdd = parseIP(tmpIp2);
+    }
+    else
+    {
+      break;
+    }
+    printf("|| %i           | %s ||\n",index, ipAdd);
+    cleanup();
+  }
+  printf("=========================================================================\n");
 }
 
 
@@ -202,6 +248,7 @@ int main(int argc, char* argv[])
   char *community = argv[4];
   init(hostname,community);
   showInterfaces();
+  showNeighbor();
 
   return 0;
 }
