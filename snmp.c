@@ -1,12 +1,11 @@
 #include <stdio.h>
 #include <net-snmp/net-snmp-config.h>
 #include <net-snmp/net-snmp-includes.h>
+#include <net-snmp/types.h>
+#include <unistd.h>
+#include <math.h>
 #include <string.h>
-/*defines
-*
-*
-*
-*/
+
 
 netsnmp_session session, *ss;
 netsnmp_pdu *pdu;
@@ -28,7 +27,7 @@ void init(char *ip, char *community)
 
   snmp_sess_init( &session);
   session.peername = strdup(ip);
-  session.version = SNMP_VERSION_1;
+  session.version = SNMP_VERSION_2c;
   session.community = community;
   session.community_len = strlen(session.community);
 
@@ -125,7 +124,7 @@ void showInterfaces()
   {
       for(vars = response->variables; vars; vars = vars->next_variable)
       {
-        if(vars->type == ASN_IPADDRESS)
+        if(vars->type == (ASN_IPADDRESS))
         {
           char tmpIp[50];
           strcpy(ifInterface[count++].ipaddress, parseIP(tmpIp));
@@ -148,12 +147,46 @@ void showInterfaces()
           break;
         }
       }
-  }
-  for(vars; vars; vars = vars->next_variable)
-  {
-    if(vars->type == ASN_INTEGER);
+      for(vars; vars; vars = vars->next_variable)
+      {
+        if (vars->type == ASN_INTEGER)
+        {
+          ifInterface[count++].ifIndex = (int) *(vars->val.integer);
+          if(count == monitor_index)
+          {
+            monitor.ifIndex = (int) *(vars->val.integer);
+          }
+          if(count >= 10)
+          {
+            printf("Too many interfaces\n");
+            break;
+          }
+      }
+      else
+      {
+        break;
+      }
   }
 }
+else
+{
+  handlemyErrors(status);
+
+}
+cleanup();
+
+count--;
+while(count >= 0)
+{
+  printf("|| %i | %s ||\n", ifInterface[count].ifIndex, ifInterface[count].ipaddress);
+  count--;
+}
+
+printf("=========================================================================\n");
+printf("\n\n");
+}
+
+
 
 int main(int argc, char* argv[])
 {
@@ -162,6 +195,7 @@ int main(int argc, char* argv[])
     printf("Please provide Time interval between samples, Number of samples to take, IP address of the agent, and community\n");
 
   }
+
   int timeInterval = atoi(argv[1]);
   int numOfSamples = atoi(argv[2]);
   char *hostname = argv[3];
