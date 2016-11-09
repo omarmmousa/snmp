@@ -1,3 +1,9 @@
+/*
+ * Author: Omar Mousa, Ronald Cheng
+ * Student ID#s: 006181240, 007810023
+ *
+ * Assignment : SNMP using C
+ */
 #include <stdio.h> // standard C library
 #include <stdlib.h>
 #include <net-snmp/net-snmp-config.h> //net-snmp configure library
@@ -5,6 +11,7 @@
 #include <net-snmp/types.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 /* determine the number of octets lost over the incoming link */
 #define lastInOctets 0
 /* determines number of octets lost over the outgoing link */
@@ -321,9 +328,8 @@ void showTraffic(int interval, int samples)
     cleanup();
     /* monitoring the traffic going on the agent device */
     long double octets = fmax((inOctets - data[lastInOctets]),(outOctets - data[lastOutOctets]));
-    long double traf = ((octets * 0.001)/interval);
-    long double traf2 = traf * (0.001);
-    printf("At %i seconds | kbps = %d | mbps = %i.%d\n", ttime, traf);
+    long double traf = ((octets * 0.001)/interval) * (0.001);
+    printf("At %i seconds | mbps = %i.%d\n", ttime, traf);
     data[lastInOctets] = inOctets;
     data[lastOutOctets] = outOctets;
     ttime = ttime + interval;
