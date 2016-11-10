@@ -23,7 +23,7 @@ netsnmp_pdu *pdu;
 netsnmp_pdu *response;
 oid anOID[MAX_OID_LEN];
 size_t anOID_len;
-netsnmp_variable_list *vars;
+netsnmp_variable_list *snmpList;
 int status;
 
 /* structure to grab ipaddresses as a string and ifIndex values */
@@ -50,16 +50,18 @@ void init(char *ip, char *community)
   /* the length of the community name */
   session.community_len = strlen(session.community);
 
+
+
 }
 
 /* to establish an snmp session */
-void snmpcommand(char *oid, int command)
+void snmpcommand(char **oid, int command)
 {
   SOCK_STARTUP;
   ss = snmp_open(&session);
   if(!ss)
   {
-    snmp_sess_perror("ack", &session);
+    snmp_sess_perror("hello", &session);
     SOCK_CLEANUP;
     exit(1);
   }
@@ -77,7 +79,7 @@ void snmpcommand(char *oid, int command)
 }
 
 /* snmpget operation */
-void snmpget(char* oid)
+void snmpget(char *oid)
 {
   snmpcommand(oid,SNMP_MSG_GET);
 }
@@ -120,7 +122,7 @@ void handlemyErrors(int err)
 /* to parse through IP addresses */
 char *parseIP(char *tmpIP)
 {
-  snprint_ipaddress(tmpIP, 50, vars, NULL,NULL,NULL);
+  snprint_ipaddress(tmpIP, 50, snmpList, NULL,NULL,NULL);
   int len = strlen("IpAddress: ");
   int NL = strlen(tmpIP) - len;
   strncpy(tmpIP, tmpIP+len, NL);
@@ -153,10 +155,10 @@ void showInterfaces()
   {
       /* loop to read values of the variables within the session at the interface level */
 
-      for(vars = response->variables; vars; vars = vars->next_variable)
+      for(snmpList = response->variables; snmpList; snmpList = snmpList->next_variable)
       {
         /* If variable in netsnmp is type ASN it is a representation of IPaddresses */
-        if(vars->type == (ASN_IPADDRESS))
+        if(snmpList->type == (ASN_IPADDRESS))
         {
           /* a string of 50 to store the IP that was parsed for the Interfaces */
           char tmpIp[50];
@@ -171,11 +173,11 @@ void showInterfaces()
             monitor_index = count;
             strcpy(monitor.ipaddress, tmpIp);
           }
-          /* takes in no more than 9 interfaces */
+          /* takes in no more than 10 interfaces */
           if(count >= 10)
           {
             printf("Too many interfaces\n");
-            vars = vars->next_variable;
+            snmpList = snmpList->next_variable;
             break;
           }
         }
@@ -186,15 +188,15 @@ void showInterfaces()
         }
       }
       /* loop to monitor ippaddress in the interface level */
-      for(vars; vars; vars = vars->next_variable)
+      for(snmpList; snmpList; snmpList = snmpList->next_variable)
       {
         /* if ip string is a data representation of ASN monitor that address */
-        if (vars->type == ASN_INTEGER)
+        if (snmpList->type == ASN_INTEGER)
         {
-          ifInterface[count++].ifIndex = (int) *(vars->val.integer);
+          ifInterface[count++].ifIndex = (int) *(snmpList->val.integer);
           if(count == monitor_index)
           {
-            monitor.ifIndex = (int) *(vars->val.integer);
+            monitor.ifIndex = (int) *(snmpList->val.integer);
           }
           if(count >= 10)
           {
@@ -217,7 +219,7 @@ cleanup();
 
 count--;
 /* formating the output of the interfaces */
-while(count >= 0)
+do
 {
   if(ifInterface[count].ifIndex > 9)
   {
@@ -229,9 +231,8 @@ while(count >= 0)
     printf("||%i\t      |%s \t||\n", ifInterface[count].ifIndex, ifInterface[count].ipaddress);
     count--;
   }
+}while(count >= 0);
 
-}
-  printf("||==============================||\n");
 }
 /*||=============================================||
  *||                Neighbors                    ||
@@ -251,14 +252,14 @@ do
     snmpgetnext(ifIndexOID);
     int index;
     char *ipAdd;
-    vars = response->variables;
+    snmpList = response->variables;
 
-    if( vars->type == ASN_INTEGER)
+    if( snmpList->type == ASN_INTEGER)
     {
       char tmpIp[50];
-      snprint_objid(tmpIp,50, vars->name, vars->name_length);
+      snprint_objid(tmpIp,50, snmpList->name, snmpList->name_length);
       strcpy(ifIndexOID, tmpIp);
-      index = (int) *(vars->val.integer);
+      index = (int) *(snmpList->val.integer);
     }
     else
     {
@@ -266,12 +267,12 @@ do
     }
     cleanup();
     snmpgetnext(ipOID);
-    vars = response->variables;
-    if(vars->type == ASN_IPADDRESS)
+    snmpList = response->variables;
+    if(snmpList->type == ASN_IPADDRESS)
     {
       char tmpIp2[50];
       char tmpOiD[50];
-      snprint_objid(tmpOiD,50,vars->name,vars->name_length);
+      snprint_objid(tmpOiD,50,snmpList->name,snmpList->name_length);
       strcpy(ipOID,tmpOiD);
       ipAdd = parseIP(tmpIp2);
     }
@@ -301,40 +302,43 @@ void showTraffic(int interval, int samples)
 {
   char *monitorIPtraffic = monitor.ipaddress;
   int data[2];
-  char *ifInOctets[50];
-  char *ifOutOctets[50];
+  char *ifInOct[50];
+  char *ifOutOct[50];
 
-  sprintf(ifInOctets, "%s.%i", "ifInOctets", monitor.ifIndex);
-  sprintf(ifOutOctets, "%s.%i", "ifOutOctets", monitor.ifIndex);
+  sprintf(ifInOct, "%s.%i", "ifInOctets", monitor.ifIndex);
+  sprintf(ifOutOct, "%s.%i", "ifOutOctets", monitor.ifIndex);
 
-  printf("||Monitoring %s\t||\n", monitorIPtraffic);
+  printf("||Ip Address Being Monitored:  %s\t||\n", monitorIPtraffic);
 
-  snmpget(ifInOctets);
+  snmpget(ifInOct);
   data[lastInOctets] = (int) *(response->variables->val.integer);
   cleanup();
-  snmpget(ifOutOctets);
+  snmpget(ifOutOct);
   data[lastOutOctets] = (int) *(response->variables->val.integer);
   cleanup();
 
   int ttime = 0;
+  //char *ifSpeed;
   while(samples >= 0)
   {
     sleep(interval);
-    snmpget(ifInOctets);
+    snmpget(ifInOct);
     int inOctets = (int) *(response->variables->val.integer);
     cleanup();
-    snmpget(ifOutOctets);
+    snmpget(ifOutOct);
     int outOctets = (int) *(response->variables->val.integer);
     cleanup();
     /* monitoring the traffic going on the agent device */
-    long double octets = fmax((inOctets - data[lastInOctets]),(outOctets - data[lastOutOctets]));
-    long double traf = ((octets * 0.001)/interval) * (0.001);
-    printf("At %i seconds | mbps = %i.%d\n", ttime, traf);
+    long double octets = fmax((inOctets - data[lastInOctets]),(outOctets - data[lastOutOctets])*0.00595093);
+    long double traf = ((octets * 0.000595093)/(interval)) * (0.000595093);
+    //printf("%s \n", ifSpeed);
+    printf("At %i seconds | mbps = %Ld\n", ttime, traf);
     data[lastInOctets] = inOctets;
     data[lastOutOctets] = outOctets;
-    ttime = ttime + interval;
+    ttime += interval;
     samples--;
   }
+  printf("Totaltime is: %i\n", ttime);
 }
 
 /*||=============================================||
@@ -356,9 +360,9 @@ int main(int argc, char* argv[])
   char *community = argv[4];
   init(host,community);
   showInterfaces();
-  printf("||==============================||");
+  printf("||==============================||\n\n");
   showNeighbor();
-  printf("||==============================||\n");
+  printf("\n\n");
   showTraffic(interval, samples);
   return 0;
 }
